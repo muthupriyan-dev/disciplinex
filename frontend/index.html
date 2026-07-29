@@ -39,9 +39,25 @@
   }
   .logo{
     font-family:'Poppins',sans-serif;font-weight:800;
-    font-size:20px;letter-spacing:-0.01em;color:var(--text);
+    font-size:18px;letter-spacing:-0.01em;color:#ffffff;
+    background:#17151f;padding:9px 16px;border-radius:14px;
   }
-  .logo span{color:var(--accent);}
+  .logo span{color:#ff4a4a;}
+
+  .reco-card{
+    padding:16px 18px;margin-bottom:16px;display:flex;flex-direction:column;gap:10px;
+  }
+  .reco-head{display:flex;align-items:center;gap:8px;}
+  .reco-head .tag{
+    font-family:'Inter';font-weight:700;font-size:10px;letter-spacing:0.06em;
+    background:var(--chip);color:var(--accent);
+    padding:4px 10px;border-radius:20px;text-transform:uppercase;
+  }
+  .reco-rows{display:flex;flex-direction:column;gap:8px;}
+  .reco-row{display:flex;align-items:center;justify-content:space-between;background:var(--bg);border-radius:12px;padding:10px 14px;}
+  .reco-row .ex-name{font-weight:600;font-size:13px;}
+  .reco-row .ex-variation{font-size:11px;color:var(--muted);font-weight:500;}
+  .reco-row .ex-count{font-family:'Poppins';font-weight:700;font-size:16px;color:var(--accent);}
   nav{display:flex;gap:6px;background:var(--card);padding:5px;border-radius:30px;box-shadow:0 4px 14px -6px rgba(108,92,231,0.18);}
   nav button{
     background:none;border:none;color:var(--muted);
@@ -194,6 +210,11 @@
 </header>
 
 <main>
+  <div class="card reco-card">
+    <div class="reco-head"><span class="tag">Today's target</span></div>
+    <div class="reco-rows" id="recoRows"></div>
+  </div>
+
   <div class="mode-row">
     <button class="mode-btn active" id="modeSquat">Squat</button>
     <button class="mode-btn" id="modePushup">Push-up</button>
@@ -592,12 +613,43 @@ document.querySelectorAll('header nav button').forEach(btn=>{
   });
 });
 
+// ---------- DAILY RECOMMENDATION ----------
+const PUSHUP_VARIATIONS = ['Standard', 'Wide-grip', 'Diamond', 'Incline', 'Decline', 'Staggered'];
+const SQUAT_VARIATIONS = ['Bodyweight', 'Sumo', 'Pulse', 'Split', 'Jump', 'Wall-sit hold'];
+
+function dayOfYear(){
+  const now = new Date();
+  const start = new Date(now.getFullYear(), 0, 0);
+  return Math.floor((now - start) / 86400000);
+}
+function renderRecommendation(){
+  const doy = dayOfYear();
+  const streak = getStreakData().count;
+  const pushupVariant = PUSHUP_VARIATIONS[doy % PUSHUP_VARIATIONS.length];
+  const squatVariant = SQUAT_VARIATIONS[(doy + 3) % SQUAT_VARIATIONS.length];
+  const pushupCount = Math.min(10 + streak, 40);
+  const squatCount = Math.min(15 + streak, 50);
+
+  document.getElementById('recoRows').innerHTML = `
+    <div class="reco-row">
+      <div><div class="ex-name">Push-ups</div><div class="ex-variation">${pushupVariant} variation</div></div>
+      <div class="ex-count">${pushupCount}</div>
+    </div>
+    <div class="reco-row">
+      <div><div class="ex-name">Squats</div><div class="ex-variation">${squatVariant} variation</div></div>
+      <div class="ex-count">${squatCount}</div>
+    </div>
+  `;
+}
+
 // ---------- INIT ----------
 document.getElementById('startBtn').addEventListener('click', startSession);
 document.getElementById('stopBtn').addEventListener('click', stopSession);
 loadName();
 renderStreak();
+renderRecommendation();
 loadLeaderboard();
 </script>
 </body>
 </html>
+
