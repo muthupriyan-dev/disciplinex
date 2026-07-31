@@ -159,27 +159,6 @@
     0%,100%{box-shadow:0 0 0 3px rgba(var(--good-rgb),0.15), 0 14px 34px -14px rgba(0,0,0,0.55);}
     50%{box-shadow:0 0 0 6px rgba(var(--good-rgb),0.06), 0 14px 34px -14px rgba(0,0,0,0.55);}
   }
-  /* Full-screen while the camera is on */
-  body.no-scroll{overflow:hidden;}
-  .cam-wrap.fullscreen{
-    position:fixed;inset:0;width:100vw;height:100vh;aspect-ratio:unset;
-    border-radius:0;border-width:0;z-index:150;
-  }
-  .cam-count-bar{
-    display:none;position:absolute;left:0;right:0;bottom:96px;z-index:6;
-    flex-direction:column;align-items:center;gap:2px;pointer-events:none;
-  }
-  .cam-wrap.fullscreen .cam-count-bar{display:flex;}
-  .cam-count-label{
-    font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;
-    color:rgba(255,255,255,0.6);
-  }
-  .cam-count-value{
-    font-family:'Poppins';font-weight:800;font-size:64px;line-height:1;color:#fff;
-    text-shadow:0 4px 18px rgba(0,0,0,0.5);
-  }
-  .cam-count-value.bump{animation:repBump .3s var(--ease);}
-  .cam-wrap.fullscreen .cam-controls{bottom:26px;}
   video, canvas{position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;}
   video{transform:scaleX(-1);}
   canvas{transform:scaleX(-1);}
@@ -429,10 +408,6 @@
       </div>
       <div class="countdown-overlay" id="countdownOverlay" aria-live="assertive">
         <div class="countdown-num" id="countdownNum">3</div>
-      </div>
-      <div class="cam-count-bar" aria-hidden="true">
-        <span class="cam-count-label">Reps</span>
-        <span class="cam-count-value" id="camRepValue">0</span>
       </div>
       <div class="cam-controls">
         <button class="btn primary" id="startBtn">Start session</button>
@@ -763,9 +738,6 @@ function countRep(currentlyDown){
       const el = document.getElementById('repCount');
       el.textContent = repCount;
       bump(el);
-      const camEl = document.getElementById('camRepValue');
-      camEl.textContent = repCount;
-      bump(camEl);
       document.getElementById('formNote').textContent = "Rep counted — keep pace steady";
       document.getElementById('formNote').className = "form-note";
     } else {
@@ -918,8 +890,6 @@ async function startSession(){
     await new Promise(r => video.onloadedmetadata = r);
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
-    document.getElementById('camWrap').classList.add('fullscreen');
-    document.body.classList.add('no-scroll');
   }catch(err){
     toast("Camera access denied — motion tracking only");
   }
@@ -937,7 +907,6 @@ async function startSession(){
   running = true;
   repCount = 0; motionReps = 0; repState = "up"; motionBaseline = null; lastRepTime = 0; motionHistory = [];
   document.getElementById('repCount').textContent = 0;
-  document.getElementById('camRepValue').textContent = 0;
   document.getElementById('motionReps').textContent = 0;
   document.getElementById('camDot').className = 'dot live';
   document.getElementById('camStatus').textContent = 'Live';
@@ -965,8 +934,6 @@ function stopSession(){
   document.getElementById('camDot').className = 'dot';
   document.getElementById('camStatus').textContent = 'Camera off';
   document.getElementById('camWrap').classList.remove('is-live');
-  document.getElementById('camWrap').classList.remove('fullscreen');
-  document.body.classList.remove('no-scroll');
   document.getElementById('aiBadge').textContent = 'AI detection ready';
   document.getElementById('startBtn').disabled = false;
   document.getElementById('stopBtn').disabled = true;
