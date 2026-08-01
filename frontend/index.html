@@ -745,50 +745,6 @@ function countRep(currentlyDown){
     }
   }
 }
-
-let pushupMinShoulderY = null;
-let pushupMaxShoulderY = null;
-let squatLostFrames = 0;
-let pushupLostFrames = 0;
-let pushupSide = 'left';
-let pushupAngleHistory = [];
-const TRACK_LOST_GRACE_FRAMES = 8; // ~a quarter-second of dropped tracking is tolerated before a rep-in-progress is cancelled
-// Anti-cheat: on top of the plank-position check, a real push-up moves the shoulders
-// up and down by a meaningful fraction of the torso length. Just bending the elbow
-// (e.g. a fist-curl motion) while the torso stays still moves the shoulder very little,
-// so that no longer counts as a rep even if the elbow angle looks right.
-const PUSHUP_MIN_SHOULDER_MOVEMENT_RATIO = 0.15;
-function countPushupRep(currentlyDown, shoulderY, torsoLen){
-  const now = Date.now();
-  if(currentlyDown && repState === 'up'){
-    repState = 'down';
-    pushupMinShoulderY = shoulderY;
-    pushupMaxShoulderY = shoulderY;
-  } else if(repState === 'down'){
-    if(pushupMinShoulderY === null || shoulderY < pushupMinShoulderY) pushupMinShoulderY = shoulderY;
-    if(pushupMaxShoulderY === null || shoulderY > pushupMaxShoulderY) pushupMaxShoulderY = shoulderY;
-    if(!currentlyDown){
-      if(now - lastRepTime > REP_COOLDOWN_MS){
-        repState = 'up';
-        const movementRatio = torsoLen > 0 ? (pushupMaxShoulderY - pushupMinShoulderY) / torsoLen : 0;
-        if(movementRatio > PUSHUP_MIN_SHOULDER_MOVEMENT_RATIO){
-          repCount++;
-          lastRepTime = now;
-          const el = document.getElementById('repCount');
-          el.textContent = repCount;
-          bump(el);
-          document.getElementById('formNote').textContent = "Rep counted — keep pace steady";
-          document.getElementById('formNote').className = "form-note";
-        } else {
-          document.getElementById('formNote').textContent = "Lower your whole body, not just your arm — no rep counted";
-          document.getElementById('formNote').className = "form-note warn";
-        }
-      } else {
-        repState = 'up';
-      }
-    }
-  }
-}
 async function poseLoop(video, canvas, ctx){
   if(!running) return;
   const poses = await detector.estimatePoses(video);
@@ -803,7 +759,6 @@ async function poseLoop(video, canvas, ctx){
     if(exerciseMode === 'squat'){
       const hip = kpMap['left_hip'], knee = kpMap['left_knee'], ankle = kpMap['left_ankle'];
       if(hip && knee && ankle && hip.score>0.4 && knee.score>0.4 && ankle.score>0.4){
-        squatLostFrames = 0;
         const kneeAngle = angleAt(hip, knee, ankle);
         if(kneeAngle !== null){
           countRep(kneeAngle < 100);
@@ -814,70 +769,20 @@ async function poseLoop(video, canvas, ctx){
       } else {
         document.getElementById('formNote').textContent = "Step back — hip, knee & ankle need to be in frame";
         document.getElementById('formNote').className = "form-note warn";
-        // A single dropped frame (motion blur, brief occlusion mid-rep) shouldn't cancel
-        // a real rep in progress — only reset once tracking is lost for several frames
-        // in a row, which means the person actually stepped out of frame.
-        squatLostFrames++;
-        if(squatLostFrames > TRACK_LOST_GRACE_FRAMES) repState = "up";
       }
     } else {
-      // Use whichever side (left or right) MoveNet is tracking with higher confidence —
-      // but with hysteresis: only switch sides if the other side is CLEARLY better,
-      // otherwise flickering confidence scores cause the tracked side to jump every
-      // frame, which makes the shoulder/elbow position teleport and creates fake reps.
-      const leftScore = (kpMap['left_shoulder']?.score||0) + (kpMap['left_elbow']?.score||0) + (kpMap['left_wrist']?.score||0) + (kpMap['left_hip']?.score||0);
-      const rightScore = (kpMap['right_shoulder']?.score||0) + (kpMap['right_elbow']?.score||0) + (kpMap['right_wrist']?.score||0) + (kpMap['right_hip']?.score||0);
-      const SIDE_SWITCH_MARGIN = 0.5;
-      if(pushupSide === 'right' && leftScore > rightScore + SIDE_SWITCH_MARGIN) pushupSide = 'left';
-      else if(pushupSide === 'left' && rightScore > leftScore + SIDE_SWITCH_MARGIN) pushupSide = 'right';
-      const side = pushupSide;
-      const shoulder = kpMap[side+'_shoulder'], elbow = kpMap[side+'_elbow'], wrist = kpMap[side+'_wrist'], hip = kpMap[side+'_hip'];
-      const CONF_THRESHOLD = 0.3;
-      if(shoulder && elbow && wrist && hip && shoulder.score>CONF_THRESHOLD && elbow.score>CONF_THRESHOLD && wrist.score>CONF_THRESHOLD && hip.score>CONF_THRESHOLD){
-        pushupLostFrames = 0;
-        const rawElbowAngle = angleAt(shoulder, elbow, wrist);
-        // Smooth the elbow angle over the last few frames — a single noisy frame
-        // (keypoint jitter) can otherwise swing the angle across the 90° threshold
-        // even while genuinely holding still in plank, causing a fake rep.
-        let elbowAngle = rawElbowAngle;
-        if(rawElbowAngle !== null){
-          pushupAngleHistory.push(rawElbowAngle);
-          if(pushupAngleHistory.length > 3) pushupAngleHistory.shift();
-          elbowAngle = pushupAngleHistory.reduce((a,b)=>a+b,0) / pushupAngleHistory.length;
+      const shoulder = kpMap['left_shoulder'], elbow = kpMap['left_elbow'], wrist = kpMap['left_wrist'];
+      if(shoulder && elbow && wrist && shoulder.score>0.4 && elbow.score>0.4 && wrist.score>0.4){
+        const elbowAngle = angleAt(shoulder, elbow, wrist);
+        if(elbowAngle !== null){
+          countRep(elbowAngle < 90);
+          if(elbowAngle < 90) setCoach("Good depth — press back up.", false);
         }
-        // Anti-cheat: a real push-up is done in a horizontal plank position (shoulder-hip
-        // line roughly horizontal on screen). Sitting/standing and just bending the elbow
-        // (e.g. a bicep-curl motion) keeps the shoulder-hip line roughly VERTICAL instead —
-        // so we only count reps when the body is actually horizontal.
-        const dx = Math.abs(hip.x - shoulder.x);
-        const dy = Math.abs(hip.y - shoulder.y);
-        const tiltFromHorizontal = Math.atan2(dy, dx) * 180 / Math.PI; // 0=horizontal(plank), 90=vertical(sitting/standing)
-        const isPlank = tiltFromHorizontal < 55;
-
-        if(!isPlank){
-          document.getElementById('formNote').textContent = "Get into plank position — camera side-on, body horizontal (not sitting/standing)";
-          document.getElementById('formNote').className = "form-note warn";
-        } else {
-          if(elbowAngle !== null){
-            const torsoLen = Math.hypot(hip.x - shoulder.x, hip.y - shoulder.y);
-            countPushupRep(elbowAngle < 90, shoulder.y, torsoLen);
-            if(elbowAngle < 90) setCoach("Good depth — press back up.", false);
-          }
-          document.getElementById('formNote').textContent = "Tracking push-up depth";
-          document.getElementById('formNote').className = "form-note";
-        }
+        document.getElementById('formNote').textContent = "Tracking push-up depth";
+        document.getElementById('formNote').className = "form-note";
       } else {
-        document.getElementById('formNote').textContent = "Side-on view needed — shoulder, elbow, wrist & hip in frame";
+        document.getElementById('formNote').textContent = "Side-on view needed — shoulder, elbow & wrist in frame";
         document.getElementById('formNote').className = "form-note warn";
-        // Same grace-period logic as squat: only cancel a rep in progress once tracking
-        // has actually been lost for several consecutive frames.
-        pushupLostFrames++;
-        if(pushupLostFrames > TRACK_LOST_GRACE_FRAMES){
-          repState = "up";
-          pushupMinShoulderY = null;
-          pushupMaxShoulderY = null;
-          pushupAngleHistory = [];
-        }
       }
     }
   }
@@ -1000,7 +905,7 @@ async function startSession(){
   await showCountdown(3);
 
   running = true;
-  repCount = 0; motionReps = 0; repState = "up"; motionBaseline = null; lastRepTime = 0; motionHistory = []; pushupMinShoulderY = null; pushupMaxShoulderY = null; squatLostFrames = 0; pushupLostFrames = 0; pushupAngleHistory = []; pushupSide = 'left';
+  repCount = 0; motionReps = 0; repState = "up"; motionBaseline = null; lastRepTime = 0; motionHistory = [];
   document.getElementById('repCount').textContent = 0;
   document.getElementById('motionReps').textContent = 0;
   document.getElementById('camDot').className = 'dot live';
