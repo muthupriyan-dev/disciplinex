@@ -819,8 +819,15 @@ async function poseLoop(video, canvas, ctx){
         if(squatLostFrames > TRACK_LOST_GRACE_FRAMES) repState = "up";
       }
     } else {
-      const shoulder = kpMap['left_shoulder'], elbow = kpMap['left_elbow'], wrist = kpMap['left_wrist'], hip = kpMap['left_hip'];
-      if(shoulder && elbow && wrist && hip && shoulder.score>0.4 && elbow.score>0.4 && wrist.score>0.4 && hip.score>0.4){
+      // Use whichever side (left or right) MoveNet is tracking with higher confidence —
+      // depending on which way the camera sees the person lying, one side's keypoints
+      // can be much more confident than the other's.
+      const leftScore = (kpMap['left_shoulder']?.score||0) + (kpMap['left_elbow']?.score||0) + (kpMap['left_wrist']?.score||0) + (kpMap['left_hip']?.score||0);
+      const rightScore = (kpMap['right_shoulder']?.score||0) + (kpMap['right_elbow']?.score||0) + (kpMap['right_wrist']?.score||0) + (kpMap['right_hip']?.score||0);
+      const side = rightScore > leftScore ? 'right' : 'left';
+      const shoulder = kpMap[side+'_shoulder'], elbow = kpMap[side+'_elbow'], wrist = kpMap[side+'_wrist'], hip = kpMap[side+'_hip'];
+      const CONF_THRESHOLD = 0.3;
+      if(shoulder && elbow && wrist && hip && shoulder.score>CONF_THRESHOLD && elbow.score>CONF_THRESHOLD && wrist.score>CONF_THRESHOLD && hip.score>CONF_THRESHOLD){
         pushupLostFrames = 0;
         const elbowAngle = angleAt(shoulder, elbow, wrist);
         // Anti-cheat: a real push-up is done in a horizontal plank position (shoulder-hip
@@ -830,7 +837,7 @@ async function poseLoop(video, canvas, ctx){
         const dx = Math.abs(hip.x - shoulder.x);
         const dy = Math.abs(hip.y - shoulder.y);
         const tiltFromHorizontal = Math.atan2(dy, dx) * 180 / Math.PI; // 0=horizontal(plank), 90=vertical(sitting/standing)
-        const isPlank = tiltFromHorizontal < 45;
+        const isPlank = tiltFromHorizontal < 55;
 
         if(!isPlank){
           document.getElementById('formNote').textContent = "Get into plank position — camera side-on, body horizontal (not sitting/standing)";
