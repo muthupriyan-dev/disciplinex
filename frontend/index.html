@@ -748,9 +748,6 @@ function countRep(currentlyDown){
 
 let pushupMinShoulderY = null;
 let pushupMaxShoulderY = null;
-let squatLostFrames = 0;
-let pushupLostFrames = 0;
-const TRACK_LOST_GRACE_FRAMES = 8; // ~a quarter-second of dropped tracking is tolerated before a rep-in-progress is cancelled
 // Anti-cheat: on top of the plank-position check, a real push-up moves the shoulders
 // up and down by a meaningful fraction of the torso length. Just bending the elbow
 // (e.g. a fist-curl motion) while the torso stays still moves the shoulder very little,
@@ -801,7 +798,6 @@ async function poseLoop(video, canvas, ctx){
     if(exerciseMode === 'squat'){
       const hip = kpMap['left_hip'], knee = kpMap['left_knee'], ankle = kpMap['left_ankle'];
       if(hip && knee && ankle && hip.score>0.4 && knee.score>0.4 && ankle.score>0.4){
-        squatLostFrames = 0;
         const kneeAngle = angleAt(hip, knee, ankle);
         if(kneeAngle !== null){
           countRep(kneeAngle < 100);
@@ -812,23 +808,10 @@ async function poseLoop(video, canvas, ctx){
       } else {
         document.getElementById('formNote').textContent = "Step back — hip, knee & ankle need to be in frame";
         document.getElementById('formNote').className = "form-note warn";
-        // A single dropped frame (motion blur, brief occlusion mid-rep) shouldn't cancel
-        // a real rep in progress — only reset once tracking is lost for several frames
-        // in a row, which means the person actually stepped out of frame.
-        squatLostFrames++;
-        if(squatLostFrames > TRACK_LOST_GRACE_FRAMES) repState = "up";
       }
     } else {
-      // Use whichever side (left or right) MoveNet is tracking with higher confidence —
-      // depending on which way the camera sees the person lying, one side's keypoints
-      // can be much more confident than the other's.
-      const leftScore = (kpMap['left_shoulder']?.score||0) + (kpMap['left_elbow']?.score||0) + (kpMap['left_wrist']?.score||0) + (kpMap['left_hip']?.score||0);
-      const rightScore = (kpMap['right_shoulder']?.score||0) + (kpMap['right_elbow']?.score||0) + (kpMap['right_wrist']?.score||0) + (kpMap['right_hip']?.score||0);
-      const side = rightScore > leftScore ? 'right' : 'left';
-      const shoulder = kpMap[side+'_shoulder'], elbow = kpMap[side+'_elbow'], wrist = kpMap[side+'_wrist'], hip = kpMap[side+'_hip'];
-      const CONF_THRESHOLD = 0.3;
-      if(shoulder && elbow && wrist && hip && shoulder.score>CONF_THRESHOLD && elbow.score>CONF_THRESHOLD && wrist.score>CONF_THRESHOLD && hip.score>CONF_THRESHOLD){
-        pushupLostFrames = 0;
+      const shoulder = kpMap['left_shoulder'], elbow = kpMap['left_elbow'], wrist = kpMap['left_wrist'], hip = kpMap['left_hip'];
+      if(shoulder && elbow && wrist && hip && shoulder.score>0.4 && elbow.score>0.4 && wrist.score>0.4 && hip.score>0.4){
         const elbowAngle = angleAt(shoulder, elbow, wrist);
         // Anti-cheat: a real push-up is done in a horizontal plank position (shoulder-hip
         // line roughly horizontal on screen). Sitting/standing and just bending the elbow
@@ -837,7 +820,7 @@ async function poseLoop(video, canvas, ctx){
         const dx = Math.abs(hip.x - shoulder.x);
         const dy = Math.abs(hip.y - shoulder.y);
         const tiltFromHorizontal = Math.atan2(dy, dx) * 180 / Math.PI; // 0=horizontal(plank), 90=vertical(sitting/standing)
-        const isPlank = tiltFromHorizontal < 55;
+        const isPlank = tiltFromHorizontal < 45;
 
         if(!isPlank){
           document.getElementById('formNote').textContent = "Get into plank position — camera side-on, body horizontal (not sitting/standing)";
@@ -854,14 +837,6 @@ async function poseLoop(video, canvas, ctx){
       } else {
         document.getElementById('formNote').textContent = "Side-on view needed — shoulder, elbow, wrist & hip in frame";
         document.getElementById('formNote').className = "form-note warn";
-        // Same grace-period logic as squat: only cancel a rep in progress once tracking
-        // has actually been lost for several consecutive frames.
-        pushupLostFrames++;
-        if(pushupLostFrames > TRACK_LOST_GRACE_FRAMES){
-          repState = "up";
-          pushupMinShoulderY = null;
-          pushupMaxShoulderY = null;
-        }
       }
     }
   }
@@ -984,7 +959,7 @@ async function startSession(){
   await showCountdown(3);
 
   running = true;
-  repCount = 0; motionReps = 0; repState = "up"; motionBaseline = null; lastRepTime = 0; motionHistory = []; pushupMinShoulderY = null; pushupMaxShoulderY = null; squatLostFrames = 0; pushupLostFrames = 0;
+  repCount = 0; motionReps = 0; repState = "up"; motionBaseline = null; lastRepTime = 0; motionHistory = []; pushupMinShoulderY = null; pushupMaxShoulderY = null;
   document.getElementById('repCount').textContent = 0;
   document.getElementById('motionReps').textContent = 0;
   document.getElementById('camDot').className = 'dot live';
