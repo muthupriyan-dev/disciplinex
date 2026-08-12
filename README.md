@@ -36,7 +36,7 @@ Replace with your real Render URL, commit the change. Netlify redeploys automati
 - The "AI coach" currently gives rule-based feedback from pose angles — swap in a real LLM call inside `backend/server.js` later if you want generated coaching text instead.
 - Leaderboard data lives in a flat JSON file on Render's disk — fine for a demo/portfolio project, but resets on redeploy since Render's free tier disk isn't persistent. Fine to leave as-is unless you want it permanent.
 
-- ## live demo 💻
+ ## live demo 💻
 - https://disciplinex-web.netlify.app/
 
 - ---
